@@ -1,14 +1,13 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'models/result_item.dart';
 import 'services/formatter_service.dart';
 import 'package:flutter/services.dart';
-import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'services/ocr_service.dart';
 
 void main() => runApp(const FormatAnythingApp());
 
@@ -75,12 +74,10 @@ class _AppShellState extends State<AppShell> {
     }
   }
   String _titleFor(String s) { final line = s.trim().split('\n').first.trim(); return line.length > 28 ? '${line.substring(0, 28)}…' : line.isEmpty ? 'Formatted result' : line; }
-  Future<void> _pickImage() async { final x = await picker.pickImage(source: ImageSource.gallery, imageQuality: 92); if (x == null) return; await _ocr(File(x.path)); }
-  Future<void> _scanReceipt() async { final x = await picker.pickImage(source: ImageSource.camera, imageQuality: 92); if (x == null) return; await _ocr(File(x.path)); }
-  Future<void> _ocr(File file) async { setState(() => busy = true); try { final recognizer = TextRecognizer(script: TextRecognitionScript.latin); final result = await recognizer.processImage(InputImage.fromFile(file)); await recognizer.close(); setState(() { input = result.text; selectedType = 'Receipt JSON'; busy = false; }); if (input.trim().isEmpty) {
-        throw Exception('No readable text was detected. Try a clearer photo.');
-      } _process(); } catch (e) { setState(() => busy = false); if (mounted) _message('Could not read this image: $e'); } }
-  Future<void> _pickFile() async { final f = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['txt','json','csv','md','html','log']); if (f == null || f.files.single.path == null) return; try { input = await File(f.files.single.path!).readAsString(); selectedType = 'Plain Text'; _process(); } catch (_) { _message('This file could not be opened as text.'); } }
+  Future<void> _pickImage() async { final x = await picker.pickImage(source: ImageSource.gallery, imageQuality: 92); if (x == null) return; await _ocr(x); }
+  Future<void> _scanReceipt() async { final x = await picker.pickImage(source: ImageSource.camera, imageQuality: 92); if (x == null) return; await _ocr(x); }
+  Future<void> _ocr(XFile file) async { setState(() => busy = true); try { final text = await OcrService.recognize(file); if (text.trim().isEmpty) { throw Exception('No readable text was detected. Try a clearer photo.'); } if (!mounted) return; setState(() { input = text; selectedType = 'Receipt JSON'; busy = false; }); _process(); } catch (e) { if (!mounted) return; setState(() => busy = false); _message('Could not read this image: $e'); } }
+  Future<void> _pickFile() async { final f = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['txt','json','csv','md','html','log'], withData: true); if (f == null) return; try { final bytes = f.files.single.bytes; if (bytes == null) { throw Exception('File bytes unavailable'); } input = utf8.decode(bytes); selectedType = 'Plain Text'; _process(); } catch (_) { _message('This file could not be opened as text.'); } }
   void _message(String s) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s)));
   @override Widget build(BuildContext context) { final pages = [HomePage(onFormat: (t) { setState(() => selectedType = t); _openEditor(type: t); }, onScan: _scanReceipt, onImage: _pickImage, onFile: _pickFile, onHistory: () => setState(() => tab = 1), busy: busy, history: history), HistoryPage(items: history, onOpen: (r) => Navigator.push(context, MaterialPageRoute(builder: (_) => ResultPage(title: r.title, kind: r.kind, content: r.content, onEdit: () => _openEditor(text: r.content, type: r.kind)))), onDelete: (r) async { history.remove(r); final p = await SharedPreferences.getInstance(); await p.setStringList('history', history.map((e) => jsonEncode(e.toJson())).toList()); setState(() {}); }), const SettingsPage()]; return Scaffold(body: SafeArea(child: IndexedStack(index: tab, children: pages)), bottomNavigationBar: NavigationBar(selectedIndex: tab, onDestinationSelected: (v) => setState(() => tab = v), destinations: const [NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Home'), NavigationDestination(icon: Icon(Icons.history_rounded), label: 'History'), NavigationDestination(icon: Icon(Icons.settings_outlined), label: 'Settings')])); }
 }
