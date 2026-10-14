@@ -16,7 +16,7 @@ This project implements a mobile-first UI inspired by the supplied UX specificat
 ## Current implementation
 
 - Text cleanup, JSON pretty-printing, CSV conversion, tracking-parameter removal from URLs, and heuristic receipt JSON output.
-- Image picker and camera capture; ML Kit Latin-script OCR runs on-device.
+- Image picker and camera capture; browser OCR uses Tesseract.js (English model) and Android/iOS OCR uses Google ML Kit.
 - Local history using SharedPreferences; copy/share via platform actions.
 - Responsive Flutter UI for Home, History, Settings, Input Preview, and Formatted Result.
 
@@ -24,7 +24,7 @@ This project implements a mobile-first UI inspired by the supplied UX specificat
 
 - This is a functional starter source package, not a signed or release-tested IPA/APK. Flutter was not available in the packaging environment, so it could not be compiled here.
 - Native iOS Share Extension / Android share-intent ingestion is not configured by this starter; share-out actions are implemented. Add platform-specific share-in support as a separate integration step.
-- OCR currently uses ML Kit Latin recognition. The OCR language selector is intentionally English-only until more scripts are integrated and tested.
+- OCR currently uses English recognition: Tesseract.js in browsers and Google ML Kit Latin recognition on native platforms. Browser OCR loads Tesseract.js from jsDelivr and requires an internet connection on first load; self-host/pin the library and language data before production if you need controlled asset delivery.
 - Receipt field extraction is heuristic and explicitly marks generated receipt JSON for review. It is not production-grade financial extraction.
 - The `Prefer on-device processing` and `Save history locally` settings are saved as preferences; API fallback is not yet connected. No cloud/API request is made by this starter.
 - The supplied design board is included at `assets/ux_specification_board.png` as a reference asset.
