@@ -1,27 +1,23 @@
-import 'dart:js' as js;
-import 'dart:js_util' as js_util;
+import 'dart:js_interop';
 
 import 'package:image_picker/image_picker.dart';
 
+@JS('formatAnythingRecognize')
+external JSPromise<JSString> _recognizeImage(
+  JSString imageUrl,
+  JSString language,
+);
+
 class OcrService {
   static Future<String> recognize(XFile file) async {
-    final tesseract = js.context['Tesseract'];
-    if (tesseract == null) {
+    try {
+      final text = await _recognizeImage(file.path.toJS, 'eng'.toJS).toDart;
+      return text.toDart;
+    } catch (error) {
       throw Exception(
-        'The browser OCR engine could not load. Check your internet connection and try again.',
+        'Browser OCR failed. Check your connection and try a clearer image. '
+        'Details: $error',
       );
     }
-
-    // Tesseract.js fetches the selected image URL and runs OCR in WebAssembly.
-    final promise = js_util.callMethod<Object?>(
-      tesseract,
-      'recognize',
-      <Object?>[file.path, 'eng'],
-    );
-    final result = await js_util.promiseToFuture<Object?>(promise);
-    if (result == null) return '';
-    final data = js_util.getProperty<Object?>(result, 'data');
-    if (data == null) return '';
-    return js_util.getProperty<String?>(data, 'text') ?? '';
   }
 }
