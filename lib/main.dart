@@ -41,11 +41,45 @@ class _AppShellState extends State<AppShell> {
   Future<void> _loadHistory() async { final p = await SharedPreferences.getInstance(); final rows = p.getStringList('history') ?? []; if (!mounted) return; setState(() { history.addAll(rows.map((e) => ResultItem.fromJson(jsonDecode(e)))); }); }
   Future<void> _saveHistory(ResultItem item) async { history.insert(0, item); if (history.length > 100) history.removeLast(); final p = await SharedPreferences.getInstance(); await p.setStringList('history', history.map((e) => jsonEncode(e.toJson())).toList()); if (mounted) setState(() {}); }
   Future<void> _openEditor({String? text, String? type}) async { final result = await Navigator.push<String>(context, MaterialPageRoute(builder: (_) => EditorPage(initial: text ?? input))); if (result != null) { setState(() { input = result; selectedType = type ?? selectedType; }); _process(); } }
-  Future<void> _process() async { if (input.trim().isEmpty) { _openEditor(); return; } setState(() => busy = true); await Future<void>.delayed(const Duration(milliseconds: 180)); final formatted = Formatter.format(input, selectedType); setState(() { output = formatted; busy = false; }); await _saveHistory(ResultItem(title: _titleFor(input), kind: selectedType, content: formatted)); if (mounted) Navigator.push(context, MaterialPageRoute(builder: (_) => ResultPage(title: _titleFor(input), kind: selectedType, content: formatted, onEdit: () => _openEditor(text: input, type: selectedType)))); }
+  Future<void> _process() async {
+    if (input.trim().isEmpty) {
+      _openEditor();
+      return;
+    }
+    setState(() => busy = true);
+    await Future<void>.delayed(const Duration(milliseconds: 180));
+    final formatted = Formatter.format(input, selectedType);
+    setState(() {
+      output = formatted;
+      busy = false;
+    });
+    await _saveHistory(
+      ResultItem(
+        title: _titleFor(input),
+        kind: selectedType,
+        content: formatted,
+      ),
+    );
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ResultPage(
+            title: _titleFor(input),
+            kind: selectedType,
+            content: formatted,
+            onEdit: () => _openEditor(text: input, type: selectedType),
+          ),
+        ),
+      );
+    }
+  }
   String _titleFor(String s) { final line = s.trim().split('\n').first.trim(); return line.length > 28 ? '${line.substring(0, 28)}…' : line.isEmpty ? 'Formatted result' : line; }
   Future<void> _pickImage() async { final x = await picker.pickImage(source: ImageSource.gallery, imageQuality: 92); if (x == null) return; await _ocr(File(x.path)); }
   Future<void> _scanReceipt() async { final x = await picker.pickImage(source: ImageSource.camera, imageQuality: 92); if (x == null) return; await _ocr(File(x.path)); }
-  Future<void> _ocr(File file) async { setState(() => busy = true); try { final recognizer = TextRecognizer(script: TextRecognitionScript.latin); final result = await recognizer.processImage(InputImage.fromFile(file)); await recognizer.close(); setState(() { input = result.text; selectedType = 'Receipt JSON'; busy = false; }); if (input.trim().isEmpty) throw Exception('No readable text was detected. Try a clearer photo.'); _process(); } catch (e) { setState(() => busy = false); if (mounted) _message('Could not read this image: $e'); } }
+  Future<void> _ocr(File file) async { setState(() => busy = true); try { final recognizer = TextRecognizer(script: TextRecognitionScript.latin); final result = await recognizer.processImage(InputImage.fromFile(file)); await recognizer.close(); setState(() { input = result.text; selectedType = 'Receipt JSON'; busy = false; }); if (input.trim().isEmpty) {
+        throw Exception('No readable text was detected. Try a clearer photo.');
+      } _process(); } catch (e) { setState(() => busy = false); if (mounted) _message('Could not read this image: $e'); } }
   Future<void> _pickFile() async { final f = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['txt','json','csv','md','html','log']); if (f == null || f.files.single.path == null) return; try { input = await File(f.files.single.path!).readAsString(); selectedType = 'Plain Text'; _process(); } catch (_) { _message('This file could not be opened as text.'); } }
   void _message(String s) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s)));
   @override Widget build(BuildContext context) { final pages = [HomePage(onFormat: (t) { setState(() => selectedType = t); _openEditor(type: t); }, onScan: _scanReceipt, onImage: _pickImage, onFile: _pickFile, onHistory: () => setState(() => tab = 1), busy: busy, history: history), HistoryPage(items: history, onOpen: (r) => Navigator.push(context, MaterialPageRoute(builder: (_) => ResultPage(title: r.title, kind: r.kind, content: r.content, onEdit: () => _openEditor(text: r.content, type: r.kind)))), onDelete: (r) async { history.remove(r); final p = await SharedPreferences.getInstance(); await p.setStringList('history', history.map((e) => jsonEncode(e.toJson())).toList()); setState(() {}); }), const SettingsPage()]; return Scaffold(body: SafeArea(child: IndexedStack(index: tab, children: pages)), bottomNavigationBar: NavigationBar(selectedIndex: tab, onDestinationSelected: (v) => setState(() => tab = v), destinations: const [NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Home'), NavigationDestination(icon: Icon(Icons.history_rounded), label: 'History'), NavigationDestination(icon: Icon(Icons.settings_outlined), label: 'Settings')])); }
@@ -190,7 +224,9 @@ class ResultPage extends StatelessWidget {
   }
 }
 
-class HistoryPage extends StatelessWidget { const HistoryPage({super.key, required this.items, required this.onOpen, required this.onDelete}); final List<ResultItem> items; final ValueChanged<ResultItem> onOpen; final ValueChanged<ResultItem> onDelete; @override Widget build(BuildContext context) => Padding(padding: const EdgeInsets.fromLTRB(20, 20, 20, 12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('History', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: ink)), const SizedBox(height: 6), const Text('Your recent formatted results', style: TextStyle(color: muted)), const SizedBox(height: 18), Expanded(child: items.isEmpty ? const EmptyState(icon: Icons.history, title: 'No saved results yet', subtitle: 'Your formatted content will show up here.') : ListView.separated(itemCount: items.length, separatorBuilder: (_, __) => const SizedBox(height: 9), itemBuilder: (_, i) => Card(child: ListTile(onTap: () => onOpen(items[i]), leading: Container(width: 42, height: 42, decoration: BoxDecoration(color: pale, borderRadius: BorderRadius.circular(12)), child: Icon(items[i].kind.contains('JSON') ? Icons.data_object : items[i].kind == 'CSV' ? Icons.table_chart : Icons.description, color: brand)), title: Text(items[i].title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text('${items[i].kind} • ${items[i].date.toLocal().toString().substring(0,16)}'), trailing: PopupMenuButton<String>(onSelected: (v) { if (v == 'delete') onDelete(items[i]); if (v == 'share') Share.share(items[i].content); }, itemBuilder: (_) => const [PopupMenuItem(value: 'share', child: Text('Share')), PopupMenuItem(value: 'delete', child: Text('Delete'))])))))])); }
+class HistoryPage extends StatelessWidget { const HistoryPage({super.key, required this.items, required this.onOpen, required this.onDelete}); final List<ResultItem> items; final ValueChanged<ResultItem> onOpen; final ValueChanged<ResultItem> onDelete; @override Widget build(BuildContext context) => Padding(padding: const EdgeInsets.fromLTRB(20, 20, 20, 12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('History', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: ink)), const SizedBox(height: 6), const Text('Your recent formatted results', style: TextStyle(color: muted)), const SizedBox(height: 18), Expanded(child: items.isEmpty ? const EmptyState(icon: Icons.history, title: 'No saved results yet', subtitle: 'Your formatted content will show up here.') : ListView.separated(itemCount: items.length, separatorBuilder: (_, __) => const SizedBox(height: 9), itemBuilder: (_, i) => Card(child: ListTile(onTap: () => onOpen(items[i]), leading: Container(width: 42, height: 42, decoration: BoxDecoration(color: pale, borderRadius: BorderRadius.circular(12)), child: Icon(items[i].kind.contains('JSON') ? Icons.data_object : items[i].kind == 'CSV' ? Icons.table_chart : Icons.description, color: brand)), title: Text(items[i].title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text('${items[i].kind} • ${items[i].date.toLocal().toString().substring(0,16)}'), trailing: PopupMenuButton<String>(onSelected: (v) { if (v == 'delete') onDelete(items[i]); if (v == 'share') {
+                                    Share.share(items[i].content);
+                                  } }, itemBuilder: (_) => const [PopupMenuItem(value: 'share', child: Text('Share')), PopupMenuItem(value: 'delete', child: Text('Delete'))])))))])); }
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
