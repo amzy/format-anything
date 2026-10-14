@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'models/result_item.dart';
+import 'services/formatter_service.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
@@ -29,13 +31,6 @@ class FormatAnythingApp extends StatelessWidget {
       inputDecorationTheme: InputDecorationTheme(filled: true, fillColor: const Color(0xFFF7F9FD), border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none), contentPadding: const EdgeInsets.all(16))),
     home: const AppShell(),
   );
-}
-
-class ResultItem {
-  ResultItem({required this.title, required this.kind, required this.content, DateTime? date}) : date = date ?? DateTime.now();
-  final String title, kind, content; final DateTime date;
-  Map<String, dynamic> toJson() => {'title': title, 'kind': kind, 'content': content, 'date': date.toIso8601String()};
-  factory ResultItem.fromJson(Map<String, dynamic> j) => ResultItem(title: j['title'] ?? 'Untitled', kind: j['kind'] ?? 'Text', content: j['content'] ?? '', date: DateTime.tryParse(j['date'] ?? '') ?? DateTime.now());
 }
 
 class AppShell extends StatefulWidget { const AppShell({super.key}); @override State<AppShell> createState() => _AppShellState(); }
@@ -66,12 +61,6 @@ class HomePage extends StatelessWidget {
   Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const SectionTitle('Works with everything'), TextButton(onPressed: onFile, child: const Text('Open file'))]), const SizedBox(height: 10), const FeatureRow(icon: Icons.chat_bubble_outline, color: Color(0xFF65B8FF), title: 'Text & Messages', subtitle: 'Clean and format text.'), const FeatureRow(icon: Icons.code_rounded, color: Color(0xFF9B8AFF), title: 'Code & Data', subtitle: 'Format JSON, SQL, HTML and more.'), const FeatureRow(icon: Icons.table_chart_outlined, color: Color(0xFF55C89D), title: 'Tables & CSV', subtitle: 'Convert unstructured data.'), const FeatureRow(icon: Icons.receipt_long_outlined, color: Color(0xFFFFB36A), title: 'Receipts & Screenshots', subtitle: 'Extract data with on-device OCR.'), const FeatureRow(icon: Icons.link_rounded, color: Color(0xFF5F9FFF), title: 'Links & URLs', subtitle: 'Clean and validate links.'), const SizedBox(height: 22), Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const SectionTitle('Recent Results'), TextButton(onPressed: onHistory, child: const Text('See all'))]), const SizedBox(height: 8), if (history.isEmpty) const EmptyState(icon: Icons.history, title: 'Your results will appear here', subtitle: 'Format something to start your history.') else ...history.take(3).map((r) => RecentRow(item: r, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ResultPage(title: r.title, kind: r.kind, content: r.content, onEdit: () {}))))), const SizedBox(height: 12), if (busy) const LinearProgressIndicator(),
  ])))]));
  Widget _heroAction(IconData icon, String text, VoidCallback onTap, {bool light = false}) => InkWell(onTap: onTap, borderRadius: BorderRadius.circular(12), child: Container(padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10), decoration: BoxDecoration(color: light ? Colors.white.withOpacity(.16) : pale, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.white.withOpacity(.24))), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 17, color: Colors.white), const SizedBox(width: 6), Text(text, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700))])));
-}
-
-class Formatter {
- static String format(String source, String type) { final s = source.trim(); if (type == 'Clean URL') { try { final u = Uri.parse(s); const tracking = {'utm_source','utm_medium','utm_campaign','utm_term','utm_content','gclid','fbclid','mc_cid','mc_eid'}; final q = Map<String,String>.from(u.queryParameters)..removeWhere((k, _) => tracking.contains(k.toLowerCase()) || k.toLowerCase().startsWith('utm_')); return u.replace(queryParameters: q.isEmpty ? null : q).toString(); } catch (_) { return s; } } if (type == 'JSON' || type == 'Receipt JSON') { try { final value = jsonDecode(s); return const JsonEncoder.withIndent('  ').convert(value); } catch (_) { if (type == 'Receipt JSON') return _receiptJson(s); return s; } } if (type == 'CSV') return _toCsv(s); if (type == 'Markdown') return s.split('\n').map((l) => l.trimRight()).join('\n').replaceAll(RegExp(r'\n{3,}'), '\n\n'); return s.split('\n').map((l) => l.trimRight()).join('\n').replaceAll(RegExp(r'[ \t]{2,}'), ' ').replaceAll(RegExp(r'\n{3,}'), '\n\n'); }
- static String _receiptJson(String s) { final lines = s.split('\n').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(); String? money(String label) { final r = RegExp('(?:$label)\\s*[:\\-]?\\s*(?:₹|INR|Rs\\.?\\s*)?([0-9]+(?:[,.][0-9]{2})?)', caseSensitive: false); final m = r.firstMatch(s); return m?.group(1)?.replaceAll(',', ''); } final result = <String,dynamic>{'merchant': lines.isEmpty ? null : lines.first, 'date': RegExp(r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b').firstMatch(s)?.group(0), 'subtotal': money('subtotal'), 'tax': money('(?:tax|gst|vat)'), 'total': money('(?:grand total|total|amount due)')}; result.removeWhere((_, v) => v == null); result['raw_text'] = s; result['needs_review'] = true; return const JsonEncoder.withIndent('  ').convert(result); }
- static String _toCsv(String s) { final rows = s.split('\n').where((e) => e.trim().isNotEmpty).map((line) => line.split(RegExp(r'\t+|\s{2,}|\s*,\s*')).map((v) => '"${v.replaceAll('"','""')}"').join(',')).toList(); return rows.join('\n'); }
 }
 
 class EditorPage extends StatefulWidget { const EditorPage({super.key, required this.initial}); final String initial; @override State<EditorPage> createState() => _EditorPageState(); }
