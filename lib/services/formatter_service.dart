@@ -3,7 +3,13 @@ import 'dart:convert';
 class Formatter {
  static String format(String source, String type) { final s = source.trim(); if (type == 'Clean URL') { try { final u = Uri.parse(s); const tracking = {'utm_source','utm_medium','utm_campaign','utm_term','utm_content','gclid','fbclid','mc_cid','mc_eid'}; final q = Map<String,String>.from(u.queryParameters)..removeWhere((k, _) => tracking.contains(k.toLowerCase()) || k.toLowerCase().startsWith('utm_')); return u.replace(queryParameters: q.isEmpty ? null : q).toString(); } catch (_) { return s; } } if (type == 'JSON' || type == 'Receipt JSON') { try { final value = jsonDecode(s); return const JsonEncoder.withIndent('  ').convert(value); } catch (_) { if (type == 'Receipt JSON') {
         return _receiptJson(s);
-      } return s; } } if (type == 'CSV') return _toCsv(s); if (type == 'Markdown') return s.split('\n').map((l) => l.trimRight()).join('\n').replaceAll(RegExp(r'\n{3,}'), '\n\n'); return s.split('\n').map((l) => l.trimRight()).join('\n').replaceAll(RegExp(r'[ \t]{2,}'), ' ').replaceAll(RegExp(r'\n{3,}'), '\n\n'); }
+      } return s; } } if (type == 'CSV') return _toCsv(s); if (type == 'Markdown') {
+      return s
+          .split('\\n')
+          .map((l) => l.trimRight())
+          .join('\\n')
+          .replaceAll(RegExp(r'\\n{3,}'), '\\n\\n');
+    } return s.split('\n').map((l) => l.trimRight()).join('\n').replaceAll(RegExp(r'[ \t]{2,}'), ' ').replaceAll(RegExp(r'\n{3,}'), '\n\n'); }
  static String _receiptJson(String s) { final lines = s.split('\n').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(); String? money(String label) { final r = RegExp('(?:$label)\\s*[:\\-]?\\s*(?:₹|INR|Rs\\.?\\s*)?([0-9]+(?:[,.][0-9]{2})?)', caseSensitive: false); final m = r.firstMatch(s); return m?.group(1)?.replaceAll(',', ''); } final result = <String,dynamic>{'merchant': lines.isEmpty ? null : lines.first, 'date': RegExp(r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b').firstMatch(s)?.group(0), 'subtotal': money('subtotal'), 'tax': money('(?:tax|gst|vat)'), 'total': money('(?:grand total|total|amount due)')}; result.removeWhere((_, v) => v == null); result['raw_text'] = s; result['needs_review'] = true; return const JsonEncoder.withIndent('  ').convert(result); }
  static String _toCsv(String s) { final rows = s.split('\n').where((e) => e.trim().isNotEmpty).map((line) => line.split(RegExp(r'\t+|\s{2,}|\s*,\s*')).map((v) => '"${v.replaceAll('"','""')}"').join(',')).toList(); return rows.join('\n'); }
 }
