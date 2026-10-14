@@ -10,6 +10,15 @@
   <title>Format Anything</title>
   <!-- Load Tesseract before Flutter starts so browser OCR is available on web. -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script>
+    window.formatAnythingRecognize = async function (imageUrl, language) {
+      if (!window.Tesseract || typeof window.Tesseract.recognize !== 'function') {
+        throw new Error('Tesseract.js did not load. Check your internet connection.');
+      }
+      const result = await window.Tesseract.recognize(imageUrl, language);
+      return (result && result.data && result.data.text) || '';
+    };
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>
