@@ -1,0 +1,72 @@
+# Flutter and Dart
+.dart_tool/
+.packages
+.pub/
+.pub-cache/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# macOS
+.DS_Store
+.AppleDouble
+
+# Android
+android/local.properties
+android/.gradle/
+android/key.properties
+android/captures/
+android/**/*.jks
+android/**/*.keystore
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/ephemeral/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+
+# Python and FastAPI
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Secrets and environment configuration
+.env
+.env.*
+!.env.example
+!.env.template
+secrets/
+credentials/
+service-account*.json
+*serviceAccountKey*.json
+
+# Local AI models
+models/
+*.gguf
+*.onnx
+*.tflite
+*.safetensors
+*.pt
+*.pth
+
+# Logs, temporary files and coverage
+*.log
+logs/
+tmp/
+temp/
+coverage/
+test-results/
