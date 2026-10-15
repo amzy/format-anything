@@ -49,7 +49,7 @@ class Formatter {
 
     String? amountFor(String label) {
       final pattern = RegExp(
-        '(?:$label)\\s*[:\\-]?\\s*(?:[\\$€£₹¥₩₽₺₫₪฿₱]\\s*)?'
+        '(?:$label)\\s*[:\\-]?\\s*(?:[\\\$€£₹¥₩₽₺₫₪฿₱]\\s*)?'
         r'([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)',
         caseSensitive: false,
       );
