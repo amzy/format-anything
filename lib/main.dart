@@ -327,130 +327,227 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Widget _sectionHeading(String title, {String? subtitle}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: ink,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              decoration: TextDecoration.none,
+            ),
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 3),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                color: muted,
+                fontSize: 12,
+                height: 1.35,
+                decoration: TextDecoration.none,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _settingCard({required List<Widget> children}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE6ECF7)),
+      ),
+      child: Column(children: children),
+    );
+  }
+
+  Widget _settingDivider() => const Divider(
+        height: 1,
+        thickness: 1,
+        indent: 58,
+        color: Color(0xFFF0F3F9),
+      );
+
+  Widget _preferenceRow({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Widget control,
+  }) {
+    final compact = MediaQuery.sizeOf(context).width < 520;
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: compact ? 14 : 18, vertical: 13),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: brand.withValues(alpha: .09),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: brand, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w700, color: ink, fontSize: 14, decoration: TextDecoration.none)),
+                const SizedBox(height: 3),
+                Text(subtitle, style: const TextStyle(color: muted, fontSize: 12, height: 1.3, decoration: TextDecoration.none)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          control,
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final compact = width < 520;
+    final pagePadding = compact ? 16.0 : width < 900 ? 24.0 : 32.0;
+
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+      padding: EdgeInsets.fromLTRB(pagePadding, compact ? 18 : 26, pagePadding, 28),
       children: [
-        const Text(
-          'Settings',
-          style: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.w900,
-            color: ink,
-          ),
-        ),
-        const SizedBox(height: 6),
-        const Text(
-          'Make Format Anything work your way.',
-          style: TextStyle(color: muted),
-        ),
-        const SizedBox(height: 20),
-        const SectionTitle('Preferences'),
-        Card(
-          child: Column(
-            children: [
-              const ListTile(
-                leading: Icon(Icons.palette_outlined, color: brand),
-                title: Text('Appearance'),
-                subtitle: Text('System theme'),
-                trailing: Icon(Icons.chevron_right),
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.output_rounded, color: brand),
-                title: const Text('Default output format'),
-                subtitle: Text(format),
-                trailing: DropdownButton<String>(
-                  value: format,
-                  underline: const SizedBox(),
-                  items: const [
-                    'Plain Text',
-                    'JSON',
-                    'CSV',
-                    'Markdown',
-                  ].map((value) {
-                    return DropdownMenuItem(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() => format = value);
-                    _set('defaultFormat', value);
-                  },
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 920),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Settings',
+                  style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900, color: ink, height: 1.15, decoration: TextDecoration.none),
                 ),
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.translate, color: brand),
-                title: const Text('OCR language'),
-                subtitle: Text(language),
-                trailing: DropdownButton<String>(
-                  value: language,
-                  underline: const SizedBox(),
-                  items: const ['English'].map((value) {
-                    return DropdownMenuItem(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() => language = value);
-                    _set('ocrLanguage', value);
-                  },
+                const SizedBox(height: 7),
+                Text(
+                  'Make Format Anything work your way.',
+                  style: TextStyle(fontSize: compact ? 17 : 21, fontWeight: FontWeight.w600, color: muted, height: 1.3, decoration: TextDecoration.none),
                 ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        const SectionTitle('Privacy & Processing'),
-        const SizedBox(height: 10),
-        Card(
-          child: Column(
-            children: [
-              SwitchListTile(
-                value: localOnly,
-                onChanged: (value) {
-                  setState(() => localOnly = value);
-                  _set('localOnly', value);
-                },
-                secondary: const Icon(Icons.shield_outlined, color: brand),
-                title: const Text('Prefer on-device processing'),
-                subtitle: const Text(
-                  'Keep routine processing on this device.',
-                ),
-              ),
-              const Divider(height: 1),
-              SwitchListTile(
-                value: saveHistory,
-                onChanged: (value) {
-                  setState(() => saveHistory = value);
-                  _set('saveHistory', value);
-                },
-                secondary: const Icon(Icons.history, color: brand),
-                title: const Text('Save history locally'),
-                subtitle: const Text('Store results on this device.'),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        const SectionTitle('About'),
-        const SizedBox(height: 10),
-        const Card(
-          child: ListTile(
-            leading: Icon(Icons.info_outline, color: brand),
-            title: Text('Format Anything'),
-            subtitle: Text('Version 1.0.0 • Local-first starter'),
+                const SizedBox(height: 26),
+                _sectionHeading('Preferences'),
+                _settingCard(children: [
+                  _preferenceRow(
+                    icon: Icons.palette_outlined,
+                    title: 'Appearance',
+                    subtitle: 'System theme',
+                    control: const Icon(Icons.chevron_right_rounded, color: muted),
+                  ),
+                  _settingDivider(),
+                  _preferenceRow(
+                    icon: Icons.output_rounded,
+                    title: 'Default output format',
+                    subtitle: 'Choose the format used for new text',
+                    control: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: format,
+                        isDense: true,
+                        borderRadius: BorderRadius.circular(12),
+                        items: const ['Plain Text', 'JSON', 'CSV', 'Markdown']
+                            .map((value) => DropdownMenuItem(value: value, child: Text(value, style: const TextStyle(fontSize: 13))))
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() => format = value);
+                          _set('defaultFormat', value);
+                        },
+                      ),
+                    ),
+                  ),
+                  _settingDivider(),
+                  _preferenceRow(
+                    icon: Icons.translate_rounded,
+                    title: 'OCR language',
+                    subtitle: 'Language used to recognize text',
+                    control: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: language,
+                        isDense: true,
+                        borderRadius: BorderRadius.circular(12),
+                        items: const ['English']
+                            .map((value) => DropdownMenuItem(value: value, child: Text(value, style: const TextStyle(fontSize: 13))))
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() => language = value);
+                          _set('ocrLanguage', value);
+                        },
+                      ),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 26),
+                _sectionHeading('Privacy & Processing', subtitle: 'Choose how content and results are handled'),
+                _settingCard(children: [
+                  SwitchListTile.adaptive(
+                    value: localOnly,
+                    onChanged: (value) {
+                      setState(() => localOnly = value);
+                      _set('localOnly', value);
+                    },
+                    secondary: _iconTile(Icons.shield_outlined),
+                    title: const Text('Prefer on-device processing', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: ink, decoration: TextDecoration.none)),
+                    subtitle: const Text('Keep routine processing on this device.', style: TextStyle(fontSize: 12, color: muted, decoration: TextDecoration.none)),
+                    contentPadding: EdgeInsets.symmetric(horizontal: compact ? 12 : 18, vertical: 4),
+                    activeColor: brand,
+                  ),
+                  _settingDivider(),
+                  SwitchListTile.adaptive(
+                    value: saveHistory,
+                    onChanged: (value) {
+                      setState(() => saveHistory = value);
+                      _set('saveHistory', value);
+                    },
+                    secondary: _iconTile(Icons.history_rounded),
+                    title: const Text('Save history locally', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: ink, decoration: TextDecoration.none)),
+                    subtitle: const Text('Store results on this device.', style: TextStyle(fontSize: 12, color: muted, decoration: TextDecoration.none)),
+                    contentPadding: EdgeInsets.symmetric(horizontal: compact ? 12 : 18, vertical: 4),
+                    activeColor: brand,
+                  ),
+                ]),
+                const SizedBox(height: 26),
+                _sectionHeading('About'),
+                _settingCard(children: [
+                  _preferenceRow(
+                    icon: Icons.info_outline_rounded,
+                    title: 'Format Anything',
+                    subtitle: 'Version 1.0.0 · Local-first starter',
+                    control: const SizedBox.shrink(),
+                  ),
+                ]),
+              ],
+            ),
           ),
         ),
       ],
     );
   }
+
+  Widget _iconTile(IconData icon) => Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: brand.withValues(alpha: .09),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: brand, size: 20),
+      );
 }
 
 class ActionTile extends StatelessWidget { const ActionTile({super.key, required this.icon, required this.color, required this.title, required this.subtitle, required this.onTap}); final IconData icon; final Color color; final String title, subtitle; final VoidCallback onTap; @override Widget build(BuildContext context) => InkWell(onTap: onTap, borderRadius: BorderRadius.circular(18), child: Card(child: Padding(padding: const EdgeInsets.all(13), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Container(width: 34, height: 34, decoration: BoxDecoration(color: color.withValues(alpha: .16), borderRadius: BorderRadius.circular(11)), child: Icon(icon, color: color, size: 20)), const SizedBox(height: 8), Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)), Text(subtitle, style: const TextStyle(color: muted, fontSize: 11))])))); } 
