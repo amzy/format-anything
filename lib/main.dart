@@ -236,7 +236,7 @@ class _ReceiptResultView extends StatelessWidget {
       if (decoded is Map<String, dynamic>) receipt = decoded;
     } catch (_) {}
 
-    if (receipt == null || receipt!['raw_text'] is! String) {
+    if (receipt == null || receipt['raw_text'] is! String) {
       return SelectableText(content, style: const TextStyle(fontFamily: 'monospace', height: 1.5, fontSize: 13));
     }
 
@@ -245,7 +245,7 @@ class _ReceiptResultView extends StatelessWidget {
         .replaceAll(r'\r', '')
         .replaceAll(RegExp(r'[ \t]+\n'), '\n')
         .trim();
-    final structured = Map<String, dynamic>.from(receipt!)..remove('raw_text');
+    final structured = Map<String, dynamic>.from(receipt)..remove('raw_text');
     final prettyJson = const JsonEncoder.withIndent('  ').convert(structured);
     final lines = rawText.split('\n').map((line) => line.trim()).where((line) => line.isNotEmpty).toList();
 
@@ -431,9 +431,26 @@ class _SettingsPageState extends State<SettingsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Settings',
-                  style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900, color: ink, height: 1.15, decoration: TextDecoration.none),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    if (Navigator.of(context).canPop()) ...[
+                      IconButton(
+                        tooltip: 'Back',
+                        onPressed: () => Navigator.of(context).maybePop(),
+                        icon: const Icon(Icons.arrow_back_rounded, color: ink),
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    const Expanded(
+                      child: Text(
+                        'Settings',
+                        style: TextStyle(fontSize: 27, fontWeight: FontWeight.w900, color: ink, height: 1.15, decoration: TextDecoration.none),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 7),
                 Text(
@@ -505,7 +522,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     title: const Text('Prefer on-device processing', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: ink, decoration: TextDecoration.none)),
                     subtitle: const Text('Keep routine processing on this device.', style: TextStyle(fontSize: 12, color: muted, decoration: TextDecoration.none)),
                     contentPadding: EdgeInsets.symmetric(horizontal: compact ? 12 : 18, vertical: 4),
-                    activeColor: brand,
+                    activeThumbColor: brand,
                   ),
                   _settingDivider(),
                   SwitchListTile.adaptive(
