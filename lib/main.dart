@@ -240,7 +240,7 @@ class _ReceiptResultView extends StatelessWidget {
       return SelectableText(content, style: const TextStyle(fontFamily: 'monospace', height: 1.5, fontSize: 13));
     }
 
-    final rawText = (receipt!['raw_text'] as String)
+    final rawText = (receipt['raw_text'] as String)
         .replaceAll(r'\n', '\n')
         .replaceAll(r'\r', '')
         .replaceAll(RegExp(r'[ \t]+\n'), '\n')
@@ -535,7 +535,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     title: const Text('Save history locally', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: ink, decoration: TextDecoration.none)),
                     subtitle: const Text('Store results on this device.', style: TextStyle(fontSize: 12, color: muted, decoration: TextDecoration.none)),
                     contentPadding: EdgeInsets.symmetric(horizontal: compact ? 12 : 18, vertical: 4),
-                    activeColor: brand,
+                    activeThumbColor: brand,
                   ),
                 ]),
                 const SizedBox(height: 26),
