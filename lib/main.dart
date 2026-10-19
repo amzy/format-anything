@@ -174,14 +174,16 @@ class ResultPage extends StatelessWidget {
                   border: Border.all(color: const Color(0xFFE6ECF7)),
                 ),
                 child: SingleChildScrollView(
-                  child: SelectableText(
-                    content,
-                    style: TextStyle(
-                      fontFamily: kind.contains('JSON') ? 'monospace' : null,
-                      height: 1.5,
-                      fontSize: 13,
-                    ),
-                  ),
+                  child: kind == 'Receipt JSON'
+                      ? _ReceiptResultView(content: content)
+                      : SelectableText(
+                          content,
+                          style: TextStyle(
+                            fontFamily: kind.contains('JSON') ? 'monospace' : null,
+                            height: 1.5,
+                            fontSize: 13,
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -217,6 +219,67 @@ class ResultPage extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ReceiptResultView extends StatelessWidget {
+  const _ReceiptResultView({required this.content});
+
+  final String content;
+
+  @override
+  Widget build(BuildContext context) {
+    Map<String, dynamic>? receipt;
+    try {
+      final decoded = jsonDecode(content);
+      if (decoded is Map<String, dynamic>) receipt = decoded;
+    } catch (_) {}
+
+    if (receipt == null || receipt!['raw_text'] is! String) {
+      return SelectableText(content, style: const TextStyle(fontFamily: 'monospace', height: 1.5, fontSize: 13));
+    }
+
+    final rawText = (receipt!['raw_text'] as String)
+        .replaceAll(r'\n', '\n')
+        .replaceAll(r'\r', '')
+        .replaceAll(RegExp(r'[ \t]+\n'), '\n')
+        .trim();
+    final structured = Map<String, dynamic>.from(receipt!)..remove('raw_text');
+    final prettyJson = const JsonEncoder.withIndent('  ').convert(structured);
+    final lines = rawText.split('\n').map((line) => line.trim()).where((line) => line.isNotEmpty).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Extracted receipt data', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: ink)),
+        const SizedBox(height: 8),
+        SelectableText(prettyJson, style: const TextStyle(fontFamily: 'monospace', height: 1.5, fontSize: 13)),
+        const SizedBox(height: 18),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: const Color(0xFFF8FAFF), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFE6ECF7))),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(children: [
+                Icon(Icons.receipt_long_outlined, size: 18, color: brand),
+                SizedBox(width: 8),
+                Text('Raw OCR text', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink)),
+              ]),
+              const SizedBox(height: 10),
+              if (lines.isEmpty)
+                const Text('No raw OCR text available.', style: TextStyle(color: muted))
+              else
+                ...lines.map((line) => Padding(
+                  padding: const EdgeInsets.only(bottom: 5),
+                  child: SelectableText(line, style: const TextStyle(fontFamily: 'monospace', fontSize: 13, height: 1.4, color: ink)),
+                )),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
