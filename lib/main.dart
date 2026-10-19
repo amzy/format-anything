@@ -235,14 +235,15 @@ class _ReceiptResultView extends StatelessWidget {
   Widget build(BuildContext context) {
     Map<String, dynamic>? receipt;
     try { final value = jsonDecode(content); if (value is Map<String, dynamic>) receipt = value; } catch (_) {}
-    if (receipt == null || receipt['raw_text'] is! String) return SelectableText(content);
-    final rawText = (receipt['raw_text'] as String).replaceAll(r'\n', '\n').replaceAll(r'\r', '').trim();
+    final receiptData = receipt;
+    if (receiptData == null || receiptData['raw_text'] is! String) return SelectableText(content);
+    final rawText = (receiptData['raw_text'] as String).replaceAll(r'\n', '\n').replaceAll(r'\r', '').trim();
     final lines = rawText.split('\n').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
-    final items = receipt['items'] is List ? (receipt['items'] as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList() : <Map<String, dynamic>>[];
-    final csvRows = <List<String>>[['Type', 'Field', 'Value', 'Amount', 'Currency'], ['Receipt', 'Merchant', '${receipt['merchant'] ?? ''}', '', ''], ['Receipt', 'Date', '${receipt['date'] ?? ''}', '', ''], ['Receipt', 'Total', '${receipt['total'] ?? receipt['grand_total'] ?? ''}', '', '${receipt['currency_symbol'] ?? ''}'], for (final item in items) ['Item', '${item['name'] ?? item['description'] ?? ''}', '', '${item['amount'] ?? ''}', '${item['currency_symbol'] ?? receipt['currency_symbol'] ?? ''}']];
+    final items = receiptData['items'] is List ? (receiptData['items'] as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList() : <Map<String, dynamic>>[];
+    final csvRows = <List<String>>[['Type', 'Field', 'Value', 'Amount', 'Currency'], ['Receipt', 'Merchant', '${receiptData['merchant'] ?? ''}', '', ''], ['Receipt', 'Date', '${receiptData['date'] ?? ''}', '', ''], ['Receipt', 'Total', '${receiptData['total'] ?? receiptData['grand_total'] ?? ''}', '', '${receiptData['currency_symbol'] ?? ''}'], for (final item in items) ['Item', '${item['name'] ?? item['description'] ?? ''}', '', '${item['amount'] ?? ''}', '${item['currency_symbol'] ?? receiptData['currency_symbol'] ?? ''}']];
     String csvCell(String value) => '"${value.replaceAll('"', '""')}"';
     final csv = csvRows.map((row) => row.map(csvCell).join(',')).join('\n');
-    final summary = <MapEntry<String, String>>[MapEntry('Merchant', '${receipt['merchant'] ?? ''}'), MapEntry('Date', '${receipt['date'] ?? ''}'), MapEntry('Currency', '${receipt['currency_symbol'] ?? ''}'), if (receipt['total'] != null || receipt['grand_total'] != null) MapEntry('Total', '${receipt['total'] ?? receipt['grand_total']}')].where((e) => e.value.trim().isNotEmpty).toList();
+    final summary = <MapEntry<String, String>>[MapEntry('Merchant', '${receiptData['merchant'] ?? ''}'), MapEntry('Date', '${receiptData['date'] ?? ''}'), MapEntry('Currency', '${receiptData['currency_symbol'] ?? ''}'), if (receiptData['total'] != null || receiptData['grand_total'] != null) MapEntry('Total', '${receiptData['total'] ?? receiptData['grand_total']}')].where((e) => e.value.trim().isNotEmpty).toList();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       if (imageBytes != null) ...[
         const Text('Receipt image · OCR comparison', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: ink)),
@@ -258,7 +259,7 @@ class _ReceiptResultView extends StatelessWidget {
       const SizedBox(height: 16),
       const Text('Line items · CSV preview', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: ink)),
       const SizedBox(height: 8),
-      if (items.isEmpty) const Text('No line items were extracted. Raw OCR text is available below.', style: TextStyle(color: muted, fontSize: 13)) else SingleChildScrollView(scrollDirection: Axis.horizontal, child: Table(border: TableBorder.all(color: const Color(0xFFE6ECF7)), defaultVerticalAlignment: TableCellVerticalAlignment.middle, children: [TableRow(decoration: const BoxDecoration(color: Color(0xFFF0F5FF)), children: ['Item', 'Amount', 'Currency'].map((h) => Padding(padding: const EdgeInsets.all(9), child: Text(h, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: ink)))).toList()), ...items.map((item) => TableRow(children: [cell(item['name'] ?? item['description'] ?? ''), cell(item['amount'] ?? ''), cell(item['currency_symbol'] ?? receipt?['currency_symbol'] ?? '')]))])),
+      if (items.isEmpty) const Text('No line items were extracted. Raw OCR text is available below.', style: TextStyle(color: muted, fontSize: 13)) else SingleChildScrollView(scrollDirection: Axis.horizontal, child: Table(border: TableBorder.all(color: const Color(0xFFE6ECF7)), defaultVerticalAlignment: TableCellVerticalAlignment.middle, children: [TableRow(decoration: const BoxDecoration(color: Color(0xFFF0F5FF)), children: ['Item', 'Amount', 'Currency'].map((h) => Padding(padding: const EdgeInsets.all(9), child: Text(h, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: ink)))).toList()), ...items.map((item) => TableRow(children: [cell(item['name'] ?? item['description'] ?? ''), cell(item['amount'] ?? ''), cell(item['currency_symbol'] ?? receiptData['currency_symbol'] ?? '')]))])),
       const SizedBox(height: 16),
       ExpansionTile(tilePadding: EdgeInsets.zero, title: const Text('Raw OCR text', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: ink)), subtitle: const Text('Select text or copy individual lines', style: TextStyle(fontSize: 12, color: muted)), children: [for (final line in lines) Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(children: [Expanded(child: SelectableText(line, style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: ink))), IconButton(tooltip: 'Copy line', onPressed: () => Clipboard.setData(ClipboardData(text: line)), icon: const Icon(Icons.copy_rounded, size: 16))]))]),
     ]);
