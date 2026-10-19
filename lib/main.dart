@@ -360,12 +360,15 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _settingCard({required List<Widget> children}) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
+    // Material must paint above the card surface so ListTile ink reactions
+    // remain visible instead of being hidden behind a DecoratedBox.
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE6ECF7)),
+        side: const BorderSide(color: Color(0xFFE6ECF7)),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(children: children),
     );
   }
