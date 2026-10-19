@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'models/result_item.dart';
@@ -40,7 +41,7 @@ class _AppShellState extends State<AppShell> {
   Future<void> _loadHistory() async { final p = await SharedPreferences.getInstance(); final rows = p.getStringList('history') ?? []; if (!mounted) return; setState(() { history.addAll(rows.map((e) => ResultItem.fromJson(jsonDecode(e)))); }); }
   Future<void> _saveHistory(ResultItem item) async { history.insert(0, item); if (history.length > 100) history.removeLast(); final p = await SharedPreferences.getInstance(); await p.setStringList('history', history.map((e) => jsonEncode(e.toJson())).toList()); if (mounted) setState(() {}); }
   Future<void> _openEditor({String? text, String? type}) async { final result = await Navigator.push<String>(context, MaterialPageRoute(builder: (_) => EditorPage(initial: text ?? input))); if (result != null) { setState(() { input = result; selectedType = type ?? selectedType; }); _process(); } }
-  Future<void> _process() async {
+  Future<void> _process({Uint8List? receiptImageBytes}) async {
     if (input.trim().isEmpty) {
       _openEditor();
       return;
@@ -67,6 +68,7 @@ class _AppShellState extends State<AppShell> {
             title: _titleFor(input),
             kind: selectedType,
             content: formatted,
+            receiptImageBytes: receiptImageBytes,
             onEdit: () => _openEditor(text: input, type: selectedType),
           ),
         ),
@@ -76,7 +78,7 @@ class _AppShellState extends State<AppShell> {
   String _titleFor(String s) { final line = s.trim().split('\n').first.trim(); return line.length > 28 ? '${line.substring(0, 28)}…' : line.isEmpty ? 'Formatted result' : line; }
   Future<void> _pickImage() async { final x = await picker.pickImage(source: ImageSource.gallery, imageQuality: 92); if (x == null) return; await _ocr(x); }
   Future<void> _scanReceipt() async { final x = await picker.pickImage(source: ImageSource.camera, imageQuality: 92); if (x == null) return; await _ocr(x); }
-  Future<void> _ocr(XFile file) async { setState(() => busy = true); try { final text = await OcrService.recognize(file); if (text.trim().isEmpty) { throw Exception('No readable text was detected. Try a clearer photo.'); } if (!mounted) return; setState(() { input = text; selectedType = 'Receipt JSON'; busy = false; }); _process(); } catch (e) { if (!mounted) return; setState(() => busy = false); _message('Could not read this image: $e'); } }
+  Future<void> _ocr(XFile file) async { setState(() => busy = true); try { final text = await OcrService.recognize(file); if (text.trim().isEmpty) { throw Exception('No readable text was detected. Try a clearer photo.'); } final imageBytes = await file.readAsBytes(); if (!mounted) return; setState(() { input = text; selectedType = 'Receipt JSON'; busy = false; }); _process(receiptImageBytes: imageBytes); } catch (e) { if (!mounted) return; setState(() => busy = false); _message('Could not read this image: $e'); } }
   Future<void> _pickFile() async { final f = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['txt','json','csv','md','html','log'], withData: true); if (f == null) return; try { final bytes = f.files.single.bytes; if (bytes == null) { throw Exception('File bytes unavailable'); } input = utf8.decode(bytes); selectedType = 'Plain Text'; _process(); } catch (_) { _message('This file could not be opened as text.'); } }
   void _message(String s) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s)));
   @override Widget build(BuildContext context) { final pages = [HomePage(onFormat: (t) { setState(() => selectedType = t); _openEditor(type: t); }, onScan: _scanReceipt, onImage: _pickImage, onFile: _pickFile, onHistory: () => setState(() => tab = 1), busy: busy, history: history), HistoryPage(items: history, onOpen: (r) => Navigator.push(context, MaterialPageRoute(builder: (_) => ResultPage(title: r.title, kind: r.kind, content: r.content, onEdit: () => _openEditor(text: r.content, type: r.kind)))), onDelete: (r) async { history.remove(r); final p = await SharedPreferences.getInstance(); await p.setStringList('history', history.map((e) => jsonEncode(e.toJson())).toList()); setState(() {}); }), const SettingsPage()]; return Scaffold(body: SafeArea(child: IndexedStack(index: tab, children: pages)), bottomNavigationBar: NavigationBar(selectedIndex: tab, onDestinationSelected: (v) => setState(() => tab = v), destinations: const [NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home_rounded), label: 'Home'), NavigationDestination(icon: Icon(Icons.history_rounded), label: 'History'), NavigationDestination(icon: Icon(Icons.settings_outlined), label: 'Settings')])); }
@@ -103,12 +105,14 @@ class ResultPage extends StatelessWidget {
     required this.title,
     required this.kind,
     required this.content,
+    this.receiptImageBytes,
     required this.onEdit,
   });
 
   final String title;
   final String kind;
   final String content;
+  final Uint8List? receiptImageBytes;
   final VoidCallback onEdit;
 
   Future<void> _copy(BuildContext context) async {
@@ -175,7 +179,7 @@ class ResultPage extends StatelessWidget {
                 ),
                 child: SingleChildScrollView(
                   child: kind == 'Receipt JSON'
-                      ? _ReceiptResultView(content: content)
+                      ? _ReceiptResultView(content: content, imageBytes: receiptImageBytes)
                       : SelectableText(
                           content,
                           style: TextStyle(
@@ -224,66 +228,45 @@ class ResultPage extends StatelessWidget {
 }
 
 class _ReceiptResultView extends StatelessWidget {
-  const _ReceiptResultView({required this.content});
-
+  const _ReceiptResultView({required this.content, this.imageBytes});
   final String content;
+  final Uint8List? imageBytes;
 
   @override
   Widget build(BuildContext context) {
     Map<String, dynamic>? receipt;
-    try {
-      final decoded = jsonDecode(content);
-      if (decoded is Map<String, dynamic>) receipt = decoded;
-    } catch (_) {}
-
-    if (receipt == null || receipt['raw_text'] is! String) {
-      return SelectableText(content, style: const TextStyle(fontFamily: 'monospace', height: 1.5, fontSize: 13));
-    }
-
-    final rawText = (receipt['raw_text'] as String)
-        .replaceAll(r'\n', '\n')
-        .replaceAll(r'\r', '')
-        .replaceAll(RegExp(r'[ \t]+\n'), '\n')
-        .trim();
-    final structured = Map<String, dynamic>.from(receipt)..remove('raw_text');
-    final prettyJson = const JsonEncoder.withIndent('  ').convert(structured);
-    final lines = rawText.split('\n').map((line) => line.trim()).where((line) => line.isNotEmpty).toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Extracted receipt data', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: ink)),
+    try { final value = jsonDecode(content); if (value is Map<String, dynamic>) receipt = value; } catch (_) {}
+    if (receipt == null || receipt['raw_text'] is! String) return SelectableText(content);
+    final rawText = (receipt['raw_text'] as String).replaceAll(r'\n', '\n').replaceAll(r'\r', '').trim();
+    final lines = rawText.split('\n').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    final items = receipt['items'] is List ? (receipt['items'] as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList() : <Map<String, dynamic>>[];
+    final csvRows = <List<String>>[['Type', 'Field', 'Value', 'Amount', 'Currency'], ['Receipt', 'Merchant', '${receipt['merchant'] ?? ''}', '', ''], ['Receipt', 'Date', '${receipt['date'] ?? ''}', '', ''], ['Receipt', 'Total', '${receipt['total'] ?? receipt['grand_total'] ?? ''}', '', '${receipt['currency_symbol'] ?? ''}'], for (final item in items) ['Item', '${item['name'] ?? item['description'] ?? ''}', '', '${item['amount'] ?? ''}', '${item['currency_symbol'] ?? receipt['currency_symbol'] ?? ''}']];
+    String csvCell(String value) => '"${value.replaceAll('"', '""')}"';
+    final csv = csvRows.map((row) => row.map(csvCell).join(',')).join('\n');
+    final summary = <MapEntry<String, String>>[MapEntry('Merchant', '${receipt['merchant'] ?? ''}'), MapEntry('Date', '${receipt['date'] ?? ''}'), MapEntry('Currency', '${receipt['currency_symbol'] ?? ''}'), if (receipt['total'] != null || receipt['grand_total'] != null) MapEntry('Total', '${receipt['total'] ?? receipt['grand_total']}')].where((e) => e.value.trim().isNotEmpty).toList();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (imageBytes != null) ...[
+        const Text('Receipt image · OCR comparison', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: ink)),
         const SizedBox(height: 8),
-        SelectableText(prettyJson, style: const TextStyle(fontFamily: 'monospace', height: 1.5, fontSize: 13)),
+        ClipRRect(borderRadius: BorderRadius.circular(14), child: Container(color: const Color(0xFF111827), constraints: const BoxConstraints(maxHeight: 340), width: double.infinity, child: Stack(alignment: Alignment.center, children: [
+          Image.memory(imageBytes!, fit: BoxFit.contain, width: double.infinity, height: 340),
+          if (lines.isNotEmpty) Positioned(left: 10, right: 10, top: 10, child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.black.withValues(alpha: .62), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFF77E5A5))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [const Text('DETECTED TEXT PREVIEW', style: TextStyle(color: Color(0xFF8CF0B0), fontSize: 10, fontWeight: FontWeight.w800)), const SizedBox(height: 5), ...lines.take(5).map((line) => Text(line, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 11))), if (lines.length > 5) Text('+ ${lines.length - 5} more lines below', style: const TextStyle(color: Colors.white70, fontSize: 10))]))),
+        ]))),
         const SizedBox(height: 18),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: const Color(0xFFF8FAFF), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFE6ECF7))),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(children: [
-                Icon(Icons.receipt_long_outlined, size: 18, color: brand),
-                SizedBox(width: 8),
-                Text('Raw OCR text', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: ink)),
-              ]),
-              const SizedBox(height: 10),
-              if (lines.isEmpty)
-                const Text('No raw OCR text available.', style: TextStyle(color: muted))
-              else
-                ...lines.map((line) => Padding(
-                  padding: const EdgeInsets.only(bottom: 5),
-                  child: SelectableText(line, style: const TextStyle(fontFamily: 'monospace', fontSize: 13, height: 1.4, color: ink)),
-                )),
-            ],
-          ),
-        ),
       ],
-    );
+      Row(children: [const Expanded(child: Text('Receipt fields', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: ink))), TextButton.icon(onPressed: () => Clipboard.setData(ClipboardData(text: csv)), icon: const Icon(Icons.copy, size: 16), label: const Text('Copy CSV'))]),
+      if (summary.isNotEmpty) Container(decoration: BoxDecoration(border: Border.all(color: const Color(0xFFE6ECF7)), borderRadius: BorderRadius.circular(12), color: const Color(0xFFF8FAFF)), child: Column(children: [for (var i = 0; i < summary.length; i++) ...[Padding(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), child: Row(children: [SizedBox(width: 82, child: Text(summary[i].key, style: const TextStyle(color: muted, fontSize: 12))), Expanded(child: SelectableText(summary[i].value, style: const TextStyle(color: ink, fontSize: 13, fontWeight: FontWeight.w600))), IconButton(tooltip: 'Copy value', onPressed: () => Clipboard.setData(ClipboardData(text: summary[i].value)), icon: const Icon(Icons.copy_rounded, size: 16, color: brand))])), if (i != summary.length - 1) const Divider(height: 1)] ])),
+      const SizedBox(height: 16),
+      const Text('Line items · CSV preview', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: ink)),
+      const SizedBox(height: 8),
+      if (items.isEmpty) const Text('No line items were extracted. Raw OCR text is available below.', style: TextStyle(color: muted, fontSize: 13)) else SingleChildScrollView(scrollDirection: Axis.horizontal, child: Table(border: TableBorder.all(color: const Color(0xFFE6ECF7)), defaultVerticalAlignment: TableCellVerticalAlignment.middle, children: [TableRow(decoration: const BoxDecoration(color: Color(0xFFF0F5FF)), children: ['Item', 'Amount', 'Currency'].map((h) => Padding(padding: const EdgeInsets.all(9), child: Text(h, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: ink)))).toList()), ...items.map((item) => TableRow(children: [cell(item['name'] ?? item['description'] ?? ''), cell(item['amount'] ?? ''), cell(item['currency_symbol'] ?? receipt!['currency_symbol'] ?? '')]))])),
+      const SizedBox(height: 16),
+      ExpansionTile(tilePadding: EdgeInsets.zero, title: const Text('Raw OCR text', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: ink)), subtitle: const Text('Select text or copy individual lines', style: TextStyle(fontSize: 12, color: muted)), children: [for (final line in lines) Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(children: [Expanded(child: SelectableText(line, style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: ink))), IconButton(tooltip: 'Copy line', onPressed: () => Clipboard.setData(ClipboardData(text: line)), icon: const Icon(Icons.copy_rounded, size: 16))]))]),
+    ]);
   }
-}
 
+  Widget cell(Object value) { final text = value.toString(); return Padding(padding: const EdgeInsets.all(8), child: Row(mainAxisSize: MainAxisSize.min, children: [ConstrainedBox(constraints: const BoxConstraints(maxWidth: 180), child: SelectableText(text, style: const TextStyle(fontSize: 12, color: ink))), IconButton(tooltip: 'Copy value', visualDensity: VisualDensity.compact, constraints: const BoxConstraints(minWidth: 30, minHeight: 30), padding: EdgeInsets.zero, onPressed: () => Clipboard.setData(ClipboardData(text: text)), icon: const Icon(Icons.copy_rounded, size: 14, color: brand))])); }
+}
 class HistoryPage extends StatelessWidget { const HistoryPage({super.key, required this.items, required this.onOpen, required this.onDelete}); final List<ResultItem> items; final ValueChanged<ResultItem> onOpen; final ValueChanged<ResultItem> onDelete; @override Widget build(BuildContext context) => Padding(padding: const EdgeInsets.fromLTRB(20, 20, 20, 12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('History', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: ink)), const SizedBox(height: 6), const Text('Your recent formatted results', style: TextStyle(color: muted)), const SizedBox(height: 18), Expanded(child: items.isEmpty ? const EmptyState(icon: Icons.history, title: 'No saved results yet', subtitle: 'Your formatted content will show up here.') : ListView.separated(itemCount: items.length, separatorBuilder: (_, __) => const SizedBox(height: 9), itemBuilder: (_, i) => Card(child: ListTile(onTap: () => onOpen(items[i]), leading: Container(width: 42, height: 42, decoration: BoxDecoration(color: pale, borderRadius: BorderRadius.circular(12)), child: Icon(items[i].kind.contains('JSON') ? Icons.data_object : items[i].kind == 'CSV' ? Icons.table_chart : Icons.description, color: brand)), title: Text(items[i].title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text('${items[i].kind} • ${items[i].date.toLocal().toString().substring(0,16)}'), trailing: PopupMenuButton<String>(onSelected: (v) { if (v == 'delete') onDelete(items[i]); if (v == 'share') {
                                     Share.share(items[i].content);
                                   } }, itemBuilder: (_) => const [PopupMenuItem(value: 'share', child: Text('Share')), PopupMenuItem(value: 'delete', child: Text('Delete'))])))))])); }
